@@ -7,6 +7,8 @@ TOKEN = os.getenv("TOKEN")
 intents = discord.Intents.default()
 intents.message_content = True
 
+print("TOKEN:", os.getenv("TOKEN"))
+
 client = discord.Client(intents=intents)
 
 FRITZ_IP = "http://fritz.box"
