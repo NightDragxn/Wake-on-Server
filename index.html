@@ -376,7 +376,7 @@
           body: action
         });
         addLog(`Signal gesendet: ${label}`, 'ok');
-        if (action === 'start') addLog('Server startet in ~40 Sekunden.', 'ok');
+        if (action === 'start') addLog('Server startet in ~5 Sekunden.', 'ok');
         if (action === 'shutdown') addLog('Server fährt herunter...', 'ok');
       } catch (e) {
         addLog('Fehler: Keine Verbindung zu ntfy.sh', 'err');
