@@ -313,7 +313,7 @@
       </div>
     </div>
 
-    <div class="footer">HOMESERVER · PRIVAT · NICHT WEITERGEBEN</div>
+    <div class="footer">Owned by · Lukas · Private</div>
   </div>
 
   <script>
@@ -376,7 +376,7 @@
           body: action
         });
         addLog(`Signal gesendet: ${label}`, 'ok');
-        if (action === 'start') addLog('Server startet in ~5 Sekunden.', 'ok');
+        if (action === 'start') addLog('Server startet jetzt.', 'ok');
         if (action === 'shutdown') addLog('Server fährt herunter...', 'ok');
       } catch (e) {
         addLog('Fehler: Keine Verbindung zu ntfy.sh', 'err');
