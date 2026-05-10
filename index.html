@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Homeserver</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --border: #1e1e2e;
+      --text: #e0e0f0;
+      --muted: #4a4a6a;
+      --green: #00ff88;
+      --red: #ff3355;
+      --yellow: #ffcc00;
+      --green-dim: rgba(0, 255, 136, 0.08);
+      --red-dim: rgba(255, 51, 85, 0.08);
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Space Mono', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 60% 40% at 20% 20%, rgba(0,255,136,0.04) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 80% 80%, rgba(255,51,85,0.04) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    .grid-bg {
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 40px 40px;
+      opacity: 0.4;
+      pointer-events: none;
+    }
+
+    /* PASSWORD OVERLAY */
+    #pw-overlay {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.5rem;
+    }
+
+    #pw-overlay h2 {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.8rem;
+      color: var(--text);
+      letter-spacing: -0.02em;
+    }
+
+    #pw-overlay h2 span { color: var(--green); }
+
+    #pw-input {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: 'Space Mono', monospace;
+      font-size: 1rem;
+      padding: 0.8rem 1.2rem;
+      width: 280px;
+      outline: none;
+      letter-spacing: 0.2em;
+      transition: border-color 0.2s;
+    }
+
+    #pw-input:focus { border-color: var(--green); }
+    #pw-input.error { border-color: var(--red); animation: shake 0.3s ease; }
+
+    #pw-btn {
+      background: transparent;
+      border: 1px solid var(--green);
+      color: var(--green);
+      font-family: 'Space Mono', monospace;
+      font-size: 0.85rem;
+      letter-spacing: 0.15em;
+      padding: 0.8rem 2rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      width: 280px;
+    }
+
+    #pw-btn:hover { background: var(--green-dim); }
+    #pw-error { font-size: 0.7rem; color: var(--red); letter-spacing: 0.1em; min-height: 1rem; }
+
+    /* MAIN */
+    .container {
+      position: relative;
+      width: 100%;
+      max-width: 480px;
+      z-index: 1;
+    }
+
+    .header { margin-bottom: 2rem; animation: fadeDown 0.6s ease both; }
+
+    .label {
+      font-size: 0.65rem;
+      letter-spacing: 0.3em;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+    }
+
+    h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: 2.2rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1;
+      color: var(--text);
+    }
+
+    h1 span { color: var(--green); }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 1rem;
+      font-size: 0.7rem;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+    }
+
+    .status-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--muted);
+      flex-shrink: 0;
+      transition: background 0.5s ease, box-shadow 0.5s ease;
+    }
+
+    .status-dot.online { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 2s infinite; }
+    .status-dot.offline { background: var(--red); box-shadow: 0 0 8px var(--red); }
+
+    .status-card {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      padding: 1rem 1.2rem;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      animation: fadeUp 0.6s 0.1s ease both;
+      transition: border-color 0.5s ease;
+    }
+
+    .status-card.online { border-color: rgba(0,255,136,0.3); }
+    .status-card.offline { border-color: rgba(255,51,85,0.3); }
+
+    .status-left { display: flex; align-items: center; gap: 0.8rem; }
+
+    .status-indicator {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: all 0.5s ease;
+      flex-shrink: 0;
+    }
+
+    .status-card.online .status-indicator { background: var(--green); box-shadow: 0 0 10px var(--green); animation: pulse 2s infinite; }
+    .status-card.offline .status-indicator { background: var(--red); box-shadow: 0 0 10px var(--red); }
+
+    .status-label { font-size: 0.65rem; letter-spacing: 0.15em; color: var(--muted); margin-bottom: 2px; }
+    .status-value { font-size: 0.85rem; font-weight: 700; letter-spacing: 0.15em; transition: color 0.5s ease; color: var(--muted); }
+    .status-card.online .status-value { color: var(--green); }
+    .status-card.offline .status-value { color: var(--red); }
+    .status-updated { font-size: 0.6rem; color: var(--muted); letter-spacing: 0.08em; text-align: right; }
+
+    .buttons { display: flex; flex-direction: column; gap: 1rem; animation: fadeUp 0.6s 0.2s ease both; }
+
+    .btn {
+      position: relative;
+      width: 100%;
+      padding: 1.5rem 2rem;
+      border: 1px solid;
+      background: transparent;
+      cursor: pointer;
+      font-family: 'Space Mono', monospace;
+      font-size: 0.85rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all 0.2s ease;
+      overflow: hidden;
+    }
+
+    .btn::before { content: ''; position: absolute; inset: 0; opacity: 0; transition: opacity 0.2s ease; }
+    .btn:hover::before { opacity: 1; }
+    .btn:active { transform: scale(0.99); }
+
+    .btn-start { border-color: var(--green); color: var(--green); }
+    .btn-start::before { background: var(--green-dim); }
+    .btn-start:hover { box-shadow: 0 0 30px rgba(0,255,136,0.1); }
+
+    .btn-stop { border-color: var(--red); color: var(--red); }
+    .btn-stop::before { background: var(--red-dim); }
+    .btn-stop:hover { box-shadow: 0 0 30px rgba(255,51,85,0.1); }
+
+    .btn-icon { font-size: 1.1rem; transition: transform 0.2s ease; }
+    .btn:hover .btn-icon { transform: translateX(4px); }
+    .btn.loading { opacity: 0.6; pointer-events: none; }
+
+    /* LOG */
+    .log-wrapper { margin-top: 1rem; animation: fadeUp 0.6s 0.4s ease both; }
+
+    .log-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 1.2rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-bottom: none;
+      font-size: 0.6rem;
+      letter-spacing: 0.2em;
+      color: var(--muted);
+    }
+
+    .log-dots { display: flex; gap: 0.4rem; }
+    .log-dots span { width: 8px; height: 8px; border-radius: 50%; }
+    .log-dots span:nth-child(1) { background: #ff5f57; }
+    .log-dots span:nth-child(2) { background: #febc2e; }
+    .log-dots span:nth-child(3) { background: #28c840; }
+
+    .log {
+      border: 1px solid var(--border);
+      background: #080810;
+      padding: 1rem 1.2rem;
+      min-height: 120px;
+      max-height: 200px;
+      overflow-y: auto;
+      line-height: 1.8;
+    }
+
+    .log::-webkit-scrollbar { width: 4px; }
+    .log::-webkit-scrollbar-thumb { background: var(--border); }
+
+    .log-entry { display: flex; gap: 1rem; font-size: 0.68rem; animation: fadeIn 0.3s ease; }
+    .log-time { color: var(--muted); flex-shrink: 0; }
+    .log-msg.start { color: var(--green); }
+    .log-msg.stop { color: var(--red); }
+    .log-msg.crash { color: var(--yellow); }
+    .log-msg.info { color: var(--text); }
+
+    .footer {
+      margin-top: 1.5rem;
+      font-size: 0.6rem;
+      color: var(--muted);
+      letter-spacing: 0.2em;
+      text-align: center;
+      animation: fadeUp 0.6s 0.5s ease both;
+    }
+
+    @keyframes fadeDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+  </style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+
+  <div id="pw-overlay">
+    <h2>Home<span>Server</span></h2>
+    <div class="label">Zugang erforderlich</div>
+    <input type="password" id="pw-input" placeholder="Passwort" onkeydown="if(event.key==='Enter')checkPw()">
+    <button id="pw-btn" onclick="checkPw()">EINLOGGEN →</button>
+    <div id="pw-error"></div>
+  </div>
+
+  <div class="container" id="main" style="display:none">
+    <div class="header">
+      <div class="label">System Control</div>
+      <h1>Home<span>Server</span></h1>
+      <div class="status-bar">
+        <div class="status-dot" id="headerDot"></div>
+        <span>CachyOS · Ryzen 5 5600G · 16GB</span>
+      </div>
+    </div>
+
+    <div class="status-card" id="statusCard">
+      <div class="status-left">
+        <div class="status-indicator"></div>
+        <div>
+          <div class="status-label">SERVER STATUS</div>
+          <div class="status-value" id="statusText">PRÜFE...</div>
+        </div>
+      </div>
+      <div class="status-updated" id="statusUpdated">—</div>
+    </div>
+
+    <div class="buttons">
+      <button class="btn btn-start" onclick="sendSignal('start', this)">
+        <span>Server starten</span>
+        <span class="btn-icon">→</span>
+      </button>
+      <button class="btn btn-stop" onclick="sendSignal('shutdown', this)">
+        <span>Server stoppen</span>
+        <span class="btn-icon">→</span>
+      </button>
+    </div>
+
+    <div class="log-wrapper">
+      <div class="log-header">
+        <div class="log-dots"><span></span><span></span><span></span></div>
+        <span>SYSTEM LOG</span>
+        <span id="logCount">—</span>
+      </div>
+      <div class="log" id="log">
+        <div class="log-entry">
+          <span class="log-time">--:--:--</span>
+          <span class="log-msg info">Lade Log...</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">HOMESERVER · PRIVAT · NICHT WEITERGEBEN</div>
+  </div>
+
+  <script>
+    const TOPIC       = 'WoL-homeserver-CachyLTS-DXBCF9';
+    const GIST_ID     = '96983d3d161766dbc6e180e7cd64fb05';
+    const OFFLINE_MIN = 2;
+    const MAX_ENTRIES = 50;
+
+    // Passwort wird nie im Klartext gespeichert — nur Hash + Salt
+    const SALT          = 'mK7#nP2$qRxT9v!L';
+    const PASSWORD_HASH = '5b7bd8dd204e033064560d4c0e1682b29021c8bceb31a2a9ee7ad247cd2b9c58';
+
+    let lastStatus = null;
+    let logEntries = [];
+
+    /* ---- HASHING ---- */
+    async function sha256(str) {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    /* ---- PASSWORD ---- */
+    async function checkPw() {
+      const input = document.getElementById('pw-input');
+      const hash = await sha256(SALT + input.value);
+      if (hash === PASSWORD_HASH) {
+        document.getElementById('pw-overlay').style.display = 'none';
+        document.getElementById('main').style.display = 'block';
+        loadLog();
+        checkStatus();
+        setInterval(checkStatus, 30000);
+      } else {
+        input.classList.add('error');
+        document.getElementById('pw-error').textContent = 'Falsches Passwort';
+        setTimeout(() => input.classList.remove('error'), 500);
+        input.value = '';
+      }
+    }
+
+    function nowStr() {
+      return new Date().toLocaleString('de-DE', {
+        day:'2-digit', month:'2-digit', year:'numeric',
+        hour:'2-digit', minute:'2-digit', second:'2-digit'
+      });
+    }
+
+    /* ---- LOG ---- */
+    function renderLog() {
+      const log = document.getElementById('log');
+      log.innerHTML = '';
+      document.getElementById('logCount').textContent = `${logEntries.length} Einträge`;
+      if (!logEntries.length) {
+        log.innerHTML = '<div class="log-entry"><span class="log-time">--:--:--</span><span class="log-msg info">Keine Einträge.</span></div>';
+        return;
+      }
+      [...logEntries].reverse().forEach(e => {
+        const div = document.createElement('div');
+        div.className = 'log-entry';
+        div.innerHTML = `<span class="log-time">${e.time}</span><span class="log-msg ${e.type}">${e.msg}</span>`;
+        log.appendChild(div);
+      });
+    }
+
+    async function loadLog() {
+      try {
+        const res = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
+          headers: { 'Accept': 'application/vnd.github.v3+json' },
+          cache: 'no-store'
+        });
+        const data = await res.json();
+        const content = data.files['log.txt']?.content || '';
+        logEntries = content.trim()
+          ? content.trim().split('\n').map(line => {
+              const p = line.split(' | ');
+              return { time: p[0] || '', msg: p[1] || line, type: p[2] || 'info' };
+            })
+          : [];
+        renderLog();
+      } catch(e) { console.error(e); }
+    }
+
+    async function saveLog() {
+      // saveLog benötigt einen Token zum Schreiben - wird übersprungen
+      // Der Heartbeat auf dem Server übernimmt das Schreiben
+    }
+
+    function addLog(msg, type) {
+      logEntries.push({ time: nowStr(), msg, type });
+      if (logEntries.length > MAX_ENTRIES) logEntries.shift();
+      renderLog();
+      saveLog();
+    }
+
+    /* ---- STATUS ---- */
+    async function checkStatus() {
+      try {
+        const res = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
+          headers: { 'Accept': 'application/vnd.github.v3+json' },
+          cache: 'no-store'
+        });
+        const data = await res.json();
+        const updated = new Date(data.updated_at);
+        const diff = (new Date() - updated) / 60000;
+        const online = diff < OFFLINE_MIN;
+
+        if (lastStatus === 'online' && !online) {
+          addLog('SERVER GESTOPPT → Unknown Source (Crash?)', 'crash');
+        }
+        lastStatus = online ? 'online' : 'offline';
+
+        const card = document.getElementById('statusCard');
+        card.className = `status-card ${online ? 'online' : 'offline'}`;
+        document.getElementById('statusText').textContent = online ? 'ONLINE' : 'OFFLINE';
+        document.getElementById('headerDot').className = `status-dot ${online ? 'online' : 'offline'}`;
+        document.getElementById('statusUpdated').textContent = `Zuletzt: ${updated.toLocaleTimeString('de-DE')}`;
+      } catch(e) {
+        document.getElementById('statusText').textContent = 'FEHLER';
+      }
+    }
+
+    /* ---- SEND SIGNAL ---- */
+    async function sendSignal(action, btn) {
+      btn.classList.add('loading');
+      try {
+        await fetch(`https://ntfy.sh/${TOPIC}`, {
+          method: 'POST',
+          headers: { 'Title': action },
+          body: action
+        });
+        addLog(
+          action === 'start' ? 'SERVER STARTET → Request' : 'SERVER STOPPT → Request',
+          action === 'start' ? 'start' : 'stop'
+        );
+      } catch(e) {
+        addLog('FEHLER: Keine Verbindung zu ntfy.sh', 'crash');
+      } finally {
+        btn.classList.remove('loading');
+      }
+    }
+  </script>
+</body>
+</html>
